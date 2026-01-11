@@ -66,65 +66,56 @@ def reserve_copy_dogs_from_dogceo_to_yadisk(yadisk_access_token: str) -> bool:
 
     # Getting dog breed image urls
     qty_breed_images = 0
-    breed_subbreed_urls_dict = {}
-    future_get_breed_images_list = []
-    executor_dogceo_get_breed_images = futures.ThreadPoolExecutor(max_workers=MAX_WORKERS_DOGCEO)
-    executor_yadisk_create_directories = futures.ThreadPoolExecutor(max_workers=MAX_WORKERS_YADISK)
-
-    for breed, subbreed_list in all_dog_breed_dict.items():
-        path_yadisk_reserve_breed_directory = f"{path_yadisk_reserve_dog_directory}/{breed}"
-        executor_yadisk_create_directories.submit(create_directory_in_yadisk, yadisk_headers, path_yadisk_reserve_breed_directory)
-        if subbreed_list:
-            for sub_breed in subbreed_list:
-                path_yadisk_reserve_subbreed_directory = f"{path_yadisk_reserve_breed_directory}/{sub_breed}"
-                executor_yadisk_create_directories.submit(create_directory_in_yadisk, yadisk_headers,
-                                                           path_yadisk_reserve_subbreed_directory)
-
-                future_get_breed_images = executor_dogceo_get_breed_images.submit(get_dog_urls_from_dogceo, breed, sub_breed)
-                future_get_breed_images_list.append(future_get_breed_images)
-        else:
-            future_get_breed_images = executor_dogceo_get_breed_images.submit(get_dog_urls_from_dogceo, breed)
-            future_get_breed_images_list.append(future_get_breed_images)
-
-    qty_breed_and_subbreed = len(future_get_breed_images_list)
-    progress_get_image_urls = trange(qty_breed_and_subbreed, desc="Getting dog breed image urls from dogceo",
-                                     colour="green")
-    for future_get_breed_images in futures.as_completed(future_get_breed_images_list):
-        future_get_breed_images_result, get_breed_images_status_code = future_get_breed_images.result()
-        if future_get_breed_images_result is False:
-            print(f"Fail get dog breed image urls from dogceo! <{get_breed_images_status_code}>")
-            executor_dogceo_get_breed_images.shutdown(wait=False)
-            executor_yadisk_create_directories.shutdown(wait=False)
-            return False
-        breed_subbreed_key, image_url_list = future_get_breed_images_result
-        breed_subbreed_urls_dict[breed_subbreed_key] = image_url_list
-        qty_breed_images += len(image_url_list)
-        progress_get_image_urls.update()
-
-    executor_dogceo_get_breed_images.shutdown()
-    executor_yadisk_create_directories.shutdown()
-    progress_get_image_urls.close()
-
-    # Uploading and getting size images
     size_photos_info = {}
-    with futures.ThreadPoolExecutor(max_workers=MAX_WORKERS_YADISK) as executor_uploading_getting_size_photos:
-        future_uploading_images_list = []
-        for (breed, subbreed), upload_photo_url_list in breed_subbreed_urls_dict.items():
-            path_ya_disk_reserve_directory = f"{path_yadisk_reserve_dog_directory}/{breed}"
-            basename_photo = f"{breed}"
-            if subbreed is not None:
-                path_ya_disk_reserve_directory += f"/{subbreed}"
-                basename_photo += f"-{subbreed}"
-            for upload_photo_url in upload_photo_url_list:
-                upload_photo_name = os.path.basename(upload_photo_url)
-                photo_name = f"{basename_photo}_{upload_photo_name}"
-                path_ya_disk_uploading_photo = f"{path_ya_disk_reserve_directory}/{photo_name}"
+    with futures.ThreadPoolExecutor(max_workers=MAX_WORKERS_YADISK) as executor_yadisk_requests:
+        with futures.ThreadPoolExecutor(max_workers=MAX_WORKERS_DOGCEO) as executor_dogceo_requests:
+            future_get_breed_images_list = []
+            for breed, subbreed_list in all_dog_breed_dict.items():
+                path_yadisk_reserve_breed_directory = f"{path_yadisk_reserve_dog_directory}/{breed}"
+                executor_yadisk_requests.submit(create_directory_in_yadisk, yadisk_headers, path_yadisk_reserve_breed_directory)
+                if subbreed_list:
+                    for sub_breed in subbreed_list:
+                        path_yadisk_reserve_subbreed_directory = f"{path_yadisk_reserve_breed_directory}/{sub_breed}"
+                        executor_yadisk_requests.submit(create_directory_in_yadisk, yadisk_headers,
+                                                                   path_yadisk_reserve_subbreed_directory)
+
+                        future_get_breed_images = executor_dogceo_requests.submit(get_dog_urls_from_dogceo, breed, sub_breed)
+                        future_get_breed_images_list.append(future_get_breed_images)
+                else:
+                    future_get_breed_images = executor_dogceo_requests.submit(get_dog_urls_from_dogceo, breed)
+                    future_get_breed_images_list.append(future_get_breed_images)
+
+            qty_breed_and_subbreed = len(future_get_breed_images_list)
+            progress_get_image_urls = trange(qty_breed_and_subbreed, desc="Getting dog breed image urls from dogceo",
+                                             colour="green")
+            future_uploading_images_list = []
+            for future_get_breed_images in futures.as_completed(future_get_breed_images_list):
+                future_get_breed_images_result, get_breed_images_status_code = future_get_breed_images.result()
+                if future_get_breed_images_result is False:
+                    print(f"Fail get dog breed image urls from dogceo! <{get_breed_images_status_code}>")
+                    executor_dogceo_requests.shutdown(cancel_futures=True)
+                    executor_yadisk_requests.shutdown(cancel_futures=True)
+                    return False
+                (breed, subbreed), image_url_list = future_get_breed_images_result
+                qty_breed_images += len(image_url_list)
+                progress_get_image_urls.update()
 
                 # Uploading size photos
-                future_uploading_images = executor_uploading_getting_size_photos.submit(uploading_file_to_ya_disk_from_url,
-                                                                           yadisk_headers, path_ya_disk_uploading_photo,
-                                                                           upload_photo_url)
-                future_uploading_images_list.append(future_uploading_images)
+                path_ya_disk_reserve_directory = f"{path_yadisk_reserve_dog_directory}/{breed}"
+                basename_photo = f"{breed}"
+                if subbreed is not None:
+                    path_ya_disk_reserve_directory += f"/{subbreed}"
+                    basename_photo += f"-{subbreed}"
+                for upload_photo_url in image_url_list:
+                    upload_photo_name = os.path.basename(upload_photo_url)
+                    photo_name = f"{basename_photo}_{upload_photo_name}"
+                    path_ya_disk_uploading_photo = f"{path_ya_disk_reserve_directory}/{photo_name}"
+
+                    future_uploading_images = executor_yadisk_requests.submit(uploading_file_to_ya_disk_from_url,
+                                                                     yadisk_headers, path_ya_disk_uploading_photo,
+                                                                     upload_photo_url)
+                    future_uploading_images_list.append(future_uploading_images)
+            progress_get_image_urls.close()
 
         progress_uploading_images = trange(qty_breed_images, desc="Uploading dog photos from dogceo to yandex disk",
                                            colour="green")
@@ -132,13 +123,14 @@ def reserve_copy_dogs_from_dogceo_to_yadisk(yadisk_access_token: str) -> bool:
         for future_uploading_images in futures.as_completed(future_uploading_images_list):
             upload_photos_result, upload_images_url, upload_images_path_yadisk, upload_images_status_code = future_uploading_images.result()
             if upload_photos_result is False:
-                print(f"Fail uploading photo from {upload_images_url} to {upload_images_path_yadisk} yandex disk! <{upload_images_status_code}>")
-                executor_uploading_getting_size_photos.shutdown(wait=False)
+                print(
+                    f"Fail uploading photo from {upload_images_url} to {upload_images_path_yadisk} yandex disk! <{upload_images_status_code}>")
+                executor_yadisk_requests.shutdown(cancel_futures=True)
                 return False
             progress_uploading_images.update()
 
             # Getting size photos
-            future_get_size_photos = executor_uploading_getting_size_photos.submit(getting_file_size_from_ya_disk,
+            future_get_size_photos = executor_yadisk_requests.submit(getting_file_size_from_ya_disk,
                                                                                    yadisk_headers,
                                                                                    upload_images_path_yadisk)
             future_get_size_photos_list.append(future_get_size_photos)
@@ -148,11 +140,14 @@ def reserve_copy_dogs_from_dogceo_to_yadisk(yadisk_access_token: str) -> bool:
         for future_get_size_photos in futures.as_completed(future_get_size_photos_list):
             get_size_photo_result, get_size_photo_path_yadisk, get_size_photo_status_code = future_get_size_photos.result()
             if get_size_photo_result is False:
-                print(f"Fail get size upload photo from {get_size_photo_path_yadisk} yandex disk! <{get_size_photo_status_code}>")
+                print(
+                    f"Fail get size upload photo from {get_size_photo_path_yadisk} yandex disk! <{get_size_photo_status_code}>")
             else:
                 size_photos_info.update(get_size_photo_result)
             progress_get_size_photos.update()
         progress_get_size_photos.close()
+
+        progress_get_image_urls.close()
 
     json_file_name = f"{SIZE_PHOTOS_INFO_JSON_FILE_NAME}.json"
     path_data_info_cat_size_photos_info = os.path.join(PATH_TO_SIZE_DOG_PHOTOS_INFO_DIR, json_file_name)

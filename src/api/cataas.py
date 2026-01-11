@@ -76,11 +76,11 @@ def reserve_copy_cats_from_cataas_to_yadisk(image_text: str, yadisk_access_token
 
     # Uploading and getting size images
     size_photos_info = {}
-    with futures.ThreadPoolExecutor(max_workers=MAX_WORKERS_YADISK) as executor_uploading_getting_size_photos:
+    with futures.ThreadPoolExecutor(max_workers=MAX_WORKERS_YADISK) as executor_yadisk_requests:
         future_uploading_photos_list = []
         for cat_photo_name, path_ya_disk_photo, upload_url_photo in cat_upload_data:
             # Uploading size photos
-            future_uploading_photos = executor_uploading_getting_size_photos.submit(uploading_file_to_ya_disk_from_url,
+            future_uploading_photos = executor_yadisk_requests.submit(uploading_file_to_ya_disk_from_url,
                                                                        yadisk_headers, path_ya_disk_photo,
                                                                        upload_url_photo)
             future_uploading_photos_list.append(future_uploading_photos)
@@ -92,12 +92,12 @@ def reserve_copy_cats_from_cataas_to_yadisk(image_text: str, yadisk_access_token
             upload_photos_result, upload_photos_url, upload_photos_path_yadisk, upload_photos_status_code = future_uploading_photos.result()
             if upload_photos_result is False:
                 print(f"Fail uploading photos from {upload_photos_url} to {upload_photos_path_yadisk} yandex disk! <{upload_photos_status_code}>")
-                executor_uploading_getting_size_photos.shutdown(wait=False)
+                executor_yadisk_requests.shutdown(cancel_futures=True)
                 return False
             progress_uploading_photos.update()
 
             # Getting size photos
-            future_get_size_photos = executor_uploading_getting_size_photos.submit(getting_file_size_from_ya_disk,
+            future_get_size_photos = executor_yadisk_requests.submit(getting_file_size_from_ya_disk,
                                             yadisk_headers, upload_photos_path_yadisk)
             future_get_size_photos_list.append(future_get_size_photos)
         progress_uploading_photos.close()
