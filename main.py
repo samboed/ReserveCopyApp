@@ -1,9 +1,10 @@
 import sys
+import src.api.cataas as cataas_api
+import src.api.dogceo as dogceo_api
 
-from src.api.cataas import reserve_copy_cats_from_cataas_to_yadisk
-from src.api.dogceo import reserve_copy_dogs_from_dogceo_to_yadisk
+from src.misc import init_logging
 
-YADISK_ACCESS_TOKEN = ""
+YOUR_YADISK_ACCESS_TOKEN = ""
 
 CAT_IMAGE_TEXT = "Hello"
 
@@ -12,9 +13,10 @@ RUN_RESERVE_COPY_DOGS = True
 
 
 if __name__ == '__main__':
+    init_logging()
     if RUN_RESERVE_COPY_CATS:
-        if not reserve_copy_cats_from_cataas_to_yadisk(CAT_IMAGE_TEXT, YADISK_ACCESS_TOKEN):
+        if not cataas_api.reserve_copy_cats_to_yadisk(YOUR_YADISK_ACCESS_TOKEN, CAT_IMAGE_TEXT):
             sys.exit(1)
     if RUN_RESERVE_COPY_DOGS:
-        if not reserve_copy_dogs_from_dogceo_to_yadisk(YADISK_ACCESS_TOKEN):
+        if not dogceo_api.reserve_copy_dogs_to_yadisk(YOUR_YADISK_ACCESS_TOKEN):
             sys.exit(1)

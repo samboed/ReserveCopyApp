@@ -1,4 +1,5 @@
 import requests
+import logging
 
 from enum import Enum
 
@@ -9,15 +10,14 @@ class RequestMethods(Enum):
     POST = 2
 
 
-def response_handler(url, headers=None, params=None, method: RequestMethods = RequestMethods.GET,
-                     expect_response_status_code: tuple = (200,)):
+def request_handler(url, headers=None, params=None, method: RequestMethods = RequestMethods.GET,
+                    expect_response_status_code: tuple = (200,), qty_request_attempts=5):
     if headers is None:
         headers = {}
     if params is None:
         params = {}
 
-    remaining_request_attempts = 5
-    while remaining_request_attempts:
+    while qty_request_attempts:
         try:
             match method:
                 case RequestMethods.GET:
@@ -27,9 +27,9 @@ def response_handler(url, headers=None, params=None, method: RequestMethods = Re
                 case RequestMethods.POST:
                     response_get_file_info = requests.post(url, headers=headers, params=params)
             break
-        except requests.exceptions.RequestException as ex:
-            print(f"{ex} url={url}")
-            remaining_request_attempts -= 1
+        except requests.exceptions.RequestException:
+            logging.exception("requests.exceptions.RequestException")
+            qty_request_attempts -= 1
     else:
         return False, 0
 

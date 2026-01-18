@@ -1,8 +1,8 @@
-import os.path
+import os
 
-NAME_YADISK_RESULT_DIR = "PD-142"
-NAME_YADISK_RESERVE_CAT_DIR = "CATS"
-NAME_YADISK_RESERVE_DOG_DIR = "DOGS"
+NAME_YADISK_RES_COPY_DIR = "Reserve_copy_animals"
+NAME_YADISK_RES_CAT_DIR = "cats"
+NAME_YADISK_RES_DOG_DIR = "dogs"
 
 PATH_TO_RESULTS = r".\results"
 
